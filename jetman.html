@@ -8,6 +8,7 @@
 <style>
   :root { --bg:#000105; --wall:#223055; --hud:#fff; }
   html,body { height:100%; margin:0; background:var(--bg); }
+@supports (height: 100dvh) { html, body { height: 100dvh; } }
   body { touch-action:none; overflow:hidden; font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:var(--hud); }
   #stage { position:fixed; inset:0; }
   canvas { position:absolute; inset:0; display:block; background:var(--bg); image-rendering:pixelated; }
@@ -57,10 +58,18 @@
   const WORLD_W=800, WORLD_H=550;
   let SCREEN_W=0, SCREEN_H=0, dpr=1, worldScale=1, viewX=0, viewY=0, topBar=0, bottomBar=0;
 
+  function viewportSize(){
+    const vv = window.visualViewport;
+    if (vv && vv.width && vv.height) { return { w: Math.round(vv.width), h: Math.round(vv.height) }; }
+    return { w: Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0),
+             h: Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0) };
+  }
+
   function fitToScreen(){
     try{
-      SCREEN_W = Math.max(1, Math.floor(window.innerWidth));
-      SCREEN_H = Math.max(1, Math.floor(window.innerHeight));
+      const vp = viewportSize();
+    SCREEN_W = Math.max(1, Math.floor(vp.w));
+    SCREEN_H = Math.max(1, Math.floor(vp.h));
       dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
       const contain = Math.min(SCREEN_W/WORLD_W, SCREEN_H/WORLD_H);
       worldScale = contain;
@@ -76,6 +85,10 @@
     }catch(e){ showErr('fitToScreen: '+e); }
   }
   window.addEventListener('resize', fitToScreen);
+  window.addEventListener('orientationchange', () => { setTimeout(fitToScreen, 60); });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) { fitToScreen(); requestAnimationFrame(fitToScreen); } });
+  if (window.visualViewport) { window.visualViewport.addEventListener('resize', fitToScreen); }
+
 
   const clamp=(n,a,b)=>Math.min(Math.max(n,a),b);
   const randi=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
@@ -94,7 +107,7 @@
   let smoke=[], flames=[];
 
   // Downward offset for particle emitters (world units)
-  const PARTICLE_OFFSET_Y = 14;
+  const PARTICLE_OFFSET_Y = 20;
 
   function emitParticles(){
     const ex=helicopter.x-6, ey=helicopter.y+helicopter.height/2;
@@ -176,7 +189,34 @@
     ctx.font='24px system-ui, Arial'; ctx.fillText('Score: '+Math.floor(score), WORLD_W/2, WORLD_H/2+6); ctx.fillText('High Score: '+Math.floor(highScore), WORLD_W/2, WORLD_H/2+36);
     const msLeft=Math.max(0, canRestartAt - performance.now()); const secondsLeft=Math.ceil(msLeft/1000);
     ctx.font='20px system-ui, Arial'; if(msLeft>0){ ctx.globalAlpha=0.9; ctx.fillText('Restart in '+secondsLeft+'…', WORLD_W/2, WORLD_H/2+72); } else { ctx.globalAlpha=1; ctx.fillText('Tap/Click or Space to restart', WORLD_W/2, WORLD_H/2+72); } ctx.globalAlpha=1;
+  
+    // Draw 'Home' button (world space)
+    (function(){
+      const w = 260, h = 44;
+      const x = (WORLD_W - w) / 2;
+      const y = Math.min(WORLD_H - 70, WORLD_H/2 + 110);
+      homeButton = {x:x, y:y, w:w, h:h};
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      const r = 10;
+      ctx.beginPath();
+      ctx.moveTo(x+r,y);
+      ctx.arcTo(x+w,y, x+w,y+r, r);
+      ctx.arcTo(x+w,y+h, x+w-r,y+h, r);
+      ctx.arcTo(x,y+h, x,y+h-r, r);
+      ctx.arcTo(x,y, x+r,y, r);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.font = '22px system-ui, Arial';
+      ctx.fillText('Return Home', x + w/2, y + h/2 + 7);
+      ctx.restore();
+    })();
   }
+
+  // Inject Home button drawing just after existing text
+
   function drawDifficultyButtons(){
     const y=WORLD_H/2+56, w=180,h=44,gap=16, total=w*3+gap*2; let x=(WORLD_W-total)/2;
     ctx.textAlign='center'; ctx.font='20px system-ui, Arial';
@@ -189,6 +229,9 @@
   }
 
   const buttonRects=[{x:0,y:0,w:0,h:0},{x:0,y:0,w:0,h:0},{x:0,y:0,w:0,h:0}];
+
+  // Game Over 'Home' button rect (world space)
+  let homeButton = {x:0,y:0,w:0,h:0};
 
   function updateWorld(){
     helicopter.dy += (spacePressed?thrust:0)+gravity; helicopter.dy=clamp(helicopter.dy,-8,8); helicopter.y += helicopter.dy;
@@ -240,7 +283,17 @@
   const canvasEl = canvas;
   canvasEl.addEventListener('pointerdown', e=>{ const r=canvasEl.getBoundingClientRect(); const w=screenToWorld(e.clientX-r.left, e.clientY-r.top);
     if(gameState==='start'){ for(let i=0;i<3;i++){ const b=buttonRects[i]; if(w.x>=b.x && w.x<=b.x+b.w && w.y>=b.y && w.y<=b.y+b.h){ selectedDifficulty=i; return; } } startGame(); spacePressed=true; }
-    else if(gameState==='gameOver'){ if(performance.now()>=canRestartAt) startGame(); }
+    else if(gameState==='gameOver'){ 
+      // Click Home button (always allowed, even during cooldown)
+      if (w.x >= homeButton.x && w.x <= homeButton.x + homeButton.w && w.y >= homeButton.y && w.y <= homeButton.y + homeButton.h) {
+        resetGame();
+        gameState = 'start';
+        spacePressed = false;
+        e.preventDefault();
+        return;
+      }
+      if(performance.now()>=canRestartAt) startGame(); 
+    }
     else if(gameState==='running') setThrust(true);
     e.preventDefault();
   }, {passive:false});
@@ -249,7 +302,7 @@
   canvasEl.addEventListener('contextmenu', e=>e.preventDefault());
 
   (async()=>{ await loadBoldPixels(); })();
-  fitToScreen(); resetGame(); loop();
+  fitToScreen(); requestAnimationFrame(fitToScreen); setTimeout(fitToScreen, 200); resetGame(); loop();
 })();
 </script>
 </body>
