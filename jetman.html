@@ -32,6 +32,7 @@
   <img id="homeIcon" src="data:image/svg+xml;utf8,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%20standalone%3D%22no%22%3F%3E%0A%3Csvg%20width%3D%2221px%22%20height%3D%2220px%22%20viewBox%3D%220%200%2021%2020%22%20version%3D%221.1%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20xmlns%3Axlink%3D%22http%3A//www.w3.org/1999/xlink%22%3E%0A%20%20%20%20%3C%21--%20Generator%3A%20Sketch%203.8.1%20%2829687%29%20-%20http%3A//www.bohemiancoding.com/sketch%20--%3E%0A%20%20%20%20%3Ctitle%3Ehome%20%5B%231391%5D%3C/title%3E%0A%20%20%20%20%3Cdesc%3ECreated%20with%20Sketch.%3C/desc%3E%0A%20%20%20%20%3Cdefs%3E%3C/defs%3E%0A%20%20%20%20%3Cg%20id%3D%22Page-1%22%20stroke%3D%22none%22%20stroke-width%3D%221%22%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%0A%20%20%20%20%20%20%20%20%3Cg%20id%3D%22Dribbble-Light-Preview%22%20transform%3D%22translate%28-419.000000%2C%20-720.000000%29%22%20fill%3D%22%23000000%22%3E%0A%20%20%20%20%20%20%20%20%20%20%20%20%3Cg%20id%3D%22icons%22%20transform%3D%22translate%2856.000000%2C%20160.000000%29%22%3E%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%3Cpath%20d%3D%22M379.79996%2C578%20L376.649968%2C578%20L376.649968%2C574%20L370.349983%2C574%20L370.349983%2C578%20L367.19999%2C578%20L367.19999%2C568.813%20L373.489475%2C562.823%20L379.79996%2C568.832%20L379.79996%2C578%20Z%20M381.899955%2C568.004%20L381.899955%2C568%20L381.899955%2C568%20L373.502075%2C560%20L363%2C569.992%20L364.481546%2C571.406%20L365.099995%2C570.813%20L365.099995%2C580%20L372.449978%2C580%20L372.449978%2C576%20L374.549973%2C576%20L374.549973%2C580%20L381.899955%2C580%20L381.899955%2C579.997%20L381.899955%2C570.832%20L382.514204%2C571.416%20L384.001%2C570.002%20L381.899955%2C568.004%20Z%22%20id%3D%22home-%5B%231391%5D%22%3E%3C/path%3E%0A%20%20%20%20%20%20%20%20%20%20%20%20%3C/g%3E%0A%20%20%20%20%20%20%20%20%3C/g%3E%0A%20%20%20%20%3C/g%3E%0A%3C/svg%3E" style="display:none" alt="home"/>
 <script>
 // UI hit rects (globals)
+var uiPortraitFill = false;
 var difficultyButtonRects = [];
 var blockDensityLevel = 0; // 0: Normal, 1: High (+10%), 2: Extreme (+20%)
 var densityButtonRects = null; // rects for Block density buttons in settings
@@ -190,10 +191,14 @@ const errBox = document.getElementById('err');
       SCREEN_W = Math.max(1, Math.floor(vp.w));
       SCREEN_H = Math.max(1, Math.floor(vp.h));
       dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-      const contain = Math.min(SCREEN_W/WORLD_W, SCREEN_H/WORLD_H);
-      worldScale = contain;
-      viewX = Math.floor((SCREEN_W - WORLD_W*worldScale)/2);
-      viewY = Math.floor((SCREEN_H - WORLD_H*worldScale)/2);
+      const portrait = SCREEN_H >= SCREEN_W;
+const coverH = SCREEN_H / WORLD_H;
+const contain = Math.min(SCREEN_W/WORLD_W, SCREEN_H/WORLD_H);
+// In portrait, fill height; in landscape, contain
+worldScale = portrait ? coverH : contain;
+uiPortraitFill = !!portrait;
+viewX = Math.floor((SCREEN_W - WORLD_W*worldScale)/2);
+viewY = Math.floor((SCREEN_H - WORLD_H*worldScale)/2);
       const worldCssH = WORLD_H*worldScale;
       topBar = Math.max(0, viewY);
       bottomBar = Math.max(0, SCREEN_H - (viewY + worldCssH));
@@ -428,11 +433,22 @@ function safeSpawn(xPos){
     // Particles + HUD
     drawParticles();
     if (typeof drawExplosions==='function') drawExplosions();
-    ctx.fillStyle='#ffffff'; ctx.textAlign='left'; ctx.font='bold 22px system-ui, Arial'; ctx.fillText('Score: '+Math.floor(score),16,32);
-    ctx.textAlign='right'; ctx.fillText('High Score: '+Math.floor(highScore), WORLD_W-16,32);
+    if (uiPortraitFill) {
+      ctx.save();
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.fillStyle='#ffffff';
+      ctx.textAlign='center';
+      ctx.font='24px system-ui, Arial';
+      ctx.fillText('Score: '+Math.floor(score), SCREEN_W/2, 28);
+      ctx.restore();
+    } else {
+      ctx.fillStyle='#ffffff'; ctx.textAlign='left'; ctx.font='24px system-ui, Arial'; ctx.fillText('Score: '+Math.floor(score),16,32);
+      ctx.textAlign='right'; ctx.fillText('High Score: '+Math.floor(highScore), WORLD_W-16,32);
+    }
   }
 
   
+
 function fitFontPxForWidth(ctx, family, basePx, text, maxWidthPx){
   let px = basePx;
   ctx.save();
@@ -514,13 +530,7 @@ function drawStartScreen(){
   // Title + High score + CTA
   ctx.save();
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.font='96px "BoldPixels", system-ui, Arial'; (function(){
-  const family = '\"BoldPixels\", system-ui, Arial';
-  const margin = 24;
-  const px = fitFontPxForWidth(ctx, family, 120, 'JETMAN', Math.max(120, SCREEN_W - margin*2));
-  ctx.font = px + 'px ' + family;
-  ctx.fillText('JETMAN', SCREEN_W/2, SCREEN_H/2 - 70);
-})();
+  ctx.font='96px "BoldPixels", system-ui, Arial'; ctx.fillText('JETMAN', SCREEN_W/2, SCREEN_H/2 - 70);
   ctx.font='20px system-ui, Arial'; ctx.fillText('High Score: '+Math.floor(highScore), SCREEN_W/2, SCREEN_H/2 - 20);
   ctx.globalAlpha = 1; ctx.fillStyle = '#ffffff';
   ctx.font='40px "BoldPixels", system-ui, Arial'; ctx.fillText('TAP TO START', SCREEN_W/2, SCREEN_H/2 + 40);
@@ -730,13 +740,7 @@ function drawPaused(){
   ctx.save();
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle='#fff'; ctx.textAlign='center';
-  ctx.font='96px "BoldPixels", system-ui, Arial'; (function(){
-  const family = '\"BoldPixels\", system-ui, Arial';
-  const margin = 24;
-  const px = fitFontPxForWidth(ctx, family, 120, 'GAME OVER', Math.max(120, SCREEN_W - margin*2));
-  ctx.font = px + 'px ' + family;
-  ctx.fillText('GAME OVER', SCREEN_W/2, SCREEN_H/2 - 60);
-})();
+  ctx.font='96px "BoldPixels", system-ui, Arial'; ctx.fillText('GAME OVER', SCREEN_W/2, SCREEN_H/2 - 60);
   ctx.font='24px system-ui, Arial'; ctx.fillText('Score: '+Math.floor(score), SCREEN_W/2, SCREEN_H/2 + 114);
   ctx.font='24px system-ui, Arial'; ctx.fillText('High Score: '+Math.floor(highScore), SCREEN_W/2, SCREEN_H/2 + 150);
   const msLeft=Math.max(0, canRestartAt - performance.now());
