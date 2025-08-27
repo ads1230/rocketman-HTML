@@ -433,6 +433,26 @@ function safeSpawn(xPos){
   }
 
   
+function fitFontPxForWidth(ctx, family, basePx, text, maxWidthPx){
+  let px = basePx;
+  ctx.save();
+  ctx.font = px + 'px ' + family;
+  let w = ctx.measureText(text).width;
+  if (w > maxWidthPx) {
+    const scale = maxWidthPx / Math.max(1, w);
+    px = Math.max(12, Math.floor(px * scale));
+    ctx.font = px + 'px ' + family;
+    w = ctx.measureText(text).width;
+    while (w > maxWidthPx && px > 12) {
+      px -= 1;
+      ctx.font = px + 'px ' + family;
+      w = ctx.measureText(text).width;
+    }
+  }
+  ctx.restore();
+  return px;
+}
+
 function drawStartScreen(){
 // Full-screen overlay
   ctx.save(); ctx.setTransform(dpr,0,0,dpr,0,0);
@@ -494,7 +514,13 @@ function drawStartScreen(){
   // Title + High score + CTA
   ctx.save();
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.font='96px "BoldPixels", system-ui, Arial'; ctx.fillText('JETMAN', SCREEN_W/2, SCREEN_H/2 - 70);
+  ctx.font='96px "BoldPixels", system-ui, Arial'; (function(){
+  const family = '\"BoldPixels\", system-ui, Arial';
+  const margin = 24;
+  const px = fitFontPxForWidth(ctx, family, 120, 'JETMAN', Math.max(120, SCREEN_W - margin*2));
+  ctx.font = px + 'px ' + family;
+  ctx.fillText('JETMAN', SCREEN_W/2, SCREEN_H/2 - 70);
+})();
   ctx.font='20px system-ui, Arial'; ctx.fillText('High Score: '+Math.floor(highScore), SCREEN_W/2, SCREEN_H/2 - 20);
   ctx.globalAlpha = 1; ctx.fillStyle = '#ffffff';
   ctx.font='40px "BoldPixels", system-ui, Arial'; ctx.fillText('TAP TO START', SCREEN_W/2, SCREEN_H/2 + 40);
@@ -704,7 +730,13 @@ function drawPaused(){
   ctx.save();
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle='#fff'; ctx.textAlign='center';
-  ctx.font='96px "BoldPixels", system-ui, Arial'; ctx.fillText('GAME OVER', SCREEN_W/2, SCREEN_H/2 - 60);
+  ctx.font='96px "BoldPixels", system-ui, Arial'; (function(){
+  const family = '\"BoldPixels\", system-ui, Arial';
+  const margin = 24;
+  const px = fitFontPxForWidth(ctx, family, 120, 'GAME OVER', Math.max(120, SCREEN_W - margin*2));
+  ctx.font = px + 'px ' + family;
+  ctx.fillText('GAME OVER', SCREEN_W/2, SCREEN_H/2 - 60);
+})();
   ctx.font='24px system-ui, Arial'; ctx.fillText('Score: '+Math.floor(score), SCREEN_W/2, SCREEN_H/2 + 114);
   ctx.font='24px system-ui, Arial'; ctx.fillText('High Score: '+Math.floor(highScore), SCREEN_W/2, SCREEN_H/2 + 150);
   const msLeft=Math.max(0, canRestartAt - performance.now());
